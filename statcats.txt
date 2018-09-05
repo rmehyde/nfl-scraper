@@ -1,0 +1,8 @@
+    game_stats = {'wk', 'game date', 'opp', 'result', 'g', 'gs'}
+    rush_stats = {'att', 'yds', 'avg', 'td'}
+    pass_stats = {'comp', 'att', 'pct', 'yds', 'avg', 'td', 'int', 'sck', 'scky', 'rate'}
+    rec_stats = {'rec', 'yds', 'avg', 'td'}
+    tackle_stats = {'comb', 'total', 'ast', 'sck', 'sfty'}
+    inter_stats = {'pdef', 'int', 'yds', 'avg', 'lng', 'tds'}
+    fumbles = {'fum', 'ff', 'lost'}
+    statsymbols = {'/', '@', '.', '-'}
