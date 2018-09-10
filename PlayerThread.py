@@ -1,4 +1,3 @@
-from threading import Thread
 import requests
 from lxml import html
 import logging
@@ -12,7 +11,8 @@ ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
 logger.addHandler(ch)
 ####### ~~~~~~~~~~ #######
 
-class Player(Thread):
+
+class PlayerThread:
     STATCAT_KEY = {"Preseason": 4,
                    "Regular Season": 4,
                    "Postseason": 4,
@@ -37,7 +37,7 @@ class Player(Thread):
         DEF_SEASONS.append(str(i))
     DEF_SEASON_TYPES = ["Preseason", "Regular Season", "Postseason"]
 
-    CURR_SEASON = '2016'
+    CURR_SEASON = '2018'
 
 
     def __init__(self, url):
