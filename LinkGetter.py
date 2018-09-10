@@ -73,6 +73,8 @@ class LinkGetter:
         for i in range(len(player_urls))[::-1]:
             if player_urls[i][15] != 'p':
                 player_urls.pop(i)
+        # remove duplicates
+        player_urls = list(set(player_urls))
         return player_urls
 
     # return the subsequent index pages after page 1 of a category
