@@ -1,4 +1,4 @@
-import requests
+from urllib import request
 from lxml import html
 import logging
 
@@ -12,7 +12,7 @@ logger.addHandler(ch)
 ####### ~~~~~~~~~~ #######
 
 
-class PlayerThread:
+class PlayerGetter:
     STATCAT_KEY = {"Preseason": 4,
                    "Regular Season": 4,
                    "Postseason": 4,
@@ -33,7 +33,7 @@ class PlayerThread:
                       "POST": "Postseason"
                       }
     DEF_SEASONS = []
-    for i in range(2000, 2017):
+    for i in range(2000, 2019):
         DEF_SEASONS.append(str(i))
     DEF_SEASON_TYPES = ["Preseason", "Regular Season", "Postseason"]
 
@@ -50,22 +50,21 @@ class PlayerThread:
         self.player_num = None
         self.gls_url = None
         self.current_url = None
-        super().__init__(name="Player %s Thread" %self.playerID)
 
     def build_playervars(self, url):
         self.profile_url = url
         self.playerID = url.split('?')[-1][3:]
         self.player_name = url.split('/')[-2]
-        self.player_num = requests.get(url).url.split('/')[-2]
-        gl_page = requests.get('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.playerID)
+        self.player_num = request.urlopen(url).geturl().split('/')[-2]
+        gl_page = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.playerID)
         self.gls_url = gl_page.url
 
-    def run(self, seasons=DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
+    def get(self, seasons=DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
         self.build_playervars(self.init_url)
         if not isinstance(seasons[0], str):
             raise ValueError("Seasons provided should be strings!!!")
-        gl_tree = html.fromstring(requests.get(self.gls_url).content)
-        profile_tree = html.fromstring(requests.get(self.profile_url).content)
+        gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
+        profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
         team_record, gl_seasons = self.get_team_record(profile_tree, seasons), self.get_valid_seasons(gl_tree, seasons)
         if gl_seasons != sorted(list(team_record), reverse=True):
             err_txt = "team record keys do not match valid seasons. \n TR keys: %s \n VS: %s" %(sorted(list(team_record), reverse=True), gl_seasons)
@@ -75,10 +74,13 @@ class PlayerThread:
         return game_data, team_record
 
     def check_keys(self, gd):
-        key = gd[0].keys()
-        for pt in gd:
-            if pt.keys() != key:
-                logger.warning("GAME_DATA KEYS DO NOT ALL MATCH!!!!!")
+        try:
+            key = gd[0].keys()
+            for pt in gd:
+                if pt.keys() != key:
+                    logger.warning("GAME_DATA KEYS DO NOT ALL MATCH!!!!!")
+        except IndexError:
+            logger.warning("Empty game logs for %s" %self.player_name)
 
     def get_player_games(self, seasons, seasontypes):
         gl_urls = []
@@ -87,12 +89,12 @@ class PlayerThread:
         data = []
         for url in gl_urls:
             self.current_url = url
-            tree = html.fromstring(requests.get(url).content)
+            tree = html.fromstring(request.urlopen(url).read())
             data.extend(self.get_game_data(tree, seasontypes))
         return data
 
     def get_game_data(self, gl_tree, seasontypes=("Preseason", "Regular Season", "Postseason")):
-        tables = gl_tree.findall('body/div/div/div/div/div/div/div/div/div/table')
+        tables = gl_tree.find_class('data-table1')
         ret = []
         for table in tables:
             statcats = table.find('thead/tr')
@@ -179,7 +181,7 @@ class PlayerThread:
     def get_team_record(self, profile_tree, seasons=DEF_SEASONS):
         team_record = {}
         career_table = None
-        tables = profile_tree.findall('body/div/div/div/div/div/div/div/div/table[@class="data-table1"]')
+        tables = profile_tree.find_class('data-table1')
         for table in tables:
             if(table.find('thead/tr/td/span')).text == 'Career Stats':
                 career_table = table

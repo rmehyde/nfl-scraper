@@ -1,6 +1,6 @@
 import sqlite3
 from LinkGetter import LinkGetter
-from PlayerThread import PlayerThread
+from PlayerGetter import PlayerGetter
 import queue
 import logging
 
@@ -26,3 +26,8 @@ ind_urls.extend(lg.get_next_pages(ind_urls))
 logger.info("Pulling player URLs from index pages...")
 player_urls = lg.get_player_urls(ind_urls)
 logger.info("Got %d player pages" % len(player_urls))
+
+# create player objects and pull stats in parallel
+player_getters = []
+for url in player_urls:
+	player_getters.append(PlayerGetter(url))
