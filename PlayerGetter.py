@@ -3,7 +3,7 @@ from lxml import html
 import logging
 
 ##### LOGGING SETUP ######
-logger = logging.getLogger('nfl.player')
+logger = logging.getLogger('nfl')
 logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
@@ -45,7 +45,7 @@ class PlayerGetter:
             raise ValueError('Unrecognized url format. url provided: %s' %url)
         self.init_url = url
         self.profile_url = None
-        self.playerID = None
+        self.player_id = None
         self.player_name = None
         self.player_num = None
         self.gls_url = None
@@ -53,10 +53,10 @@ class PlayerGetter:
 
     def build_playervars(self, url):
         self.profile_url = url
-        self.playerID = url.split('?')[-1][3:]
+        self.player_id = url.split('?')[-1][3:]
         self.player_name = url.split('/')[-2]
         self.player_num = request.urlopen(url).geturl().split('/')[-2]
-        gl_page = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.playerID)
+        gl_page = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.player_id)
         self.gls_url = gl_page.url
 
     def get(self, seasons=DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
@@ -65,7 +65,8 @@ class PlayerGetter:
             raise ValueError("Seasons provided should be strings!!!")
         gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
         profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
-        team_record, gl_seasons = self.get_team_record(profile_tree, seasons), self.get_valid_seasons(gl_tree, seasons)
+        team_record = self.get_team_record(profile_tree, seasons)
+        gl_seasons = self.get_valid_seasons(gl_tree, seasons)
         # handle discrepancy between career profile info and game logs
         if gl_seasons != sorted(list(team_record), reverse=True):
             # find missing seasons
@@ -129,10 +130,8 @@ class PlayerGetter:
             if key == "Opp":
                 point[key], point["GameAtHome"] = self.parse_opp(elts[curr])
             elif key == "Result":
-                try:
-                    point["Result"], point["TeamScore"], point["OppScore"] = self.parse_res(elts[curr], point["GameAtHome"])
-                except AttributeError:
-                    logger.error("Can't parse result for week %s on %s" % (elts[0].text, self.current_url))
+                point["Result"], point["TeamScore"], point["OppScore"], point["Team"], point["Opponent"] \
+                    = self.parse_res(elts[curr], point["GameAtHome"])
             else:
                 point[key] = elts[curr].text
             curr += 1
@@ -154,6 +153,9 @@ class PlayerGetter:
             key = statkey[curr].text
             point["Fumbles" + key] = elts[curr].text
             curr += 1
+
+        # tack on our current season
+        point["Season"] = self.current_url.split("=")[-1]
         return point
 
     def parse_opp(self, elt):
@@ -180,16 +182,26 @@ class PlayerGetter:
         win_loss =  None
         team_score = None
         opp_score = None
+        team = None
+        opp = None
         try:
             win_loss = elt.find('span').text
-            team_score, opp_score = elt.find('a').text.strip().split('-')
         # tie result is not in a span
         except AttributeError:
             win_loss = elt.text.strip()
-            team_score, opp_score = elt.find('a').text.strip().split('-')
+
+        team_score, opp_score = elt.find('a').text.strip().split('-')
+        teams = elt.find('a').get('href').split('/')[-1].split('@')
+        if home:
+            team = teams[1]
+            opp = teams[0]
+        else:
+            team = teams[0]
+            opp = teams[1]
         if win_loss is None or team_score is None or opp_score is None:
             raise ValueError('unable to assign opp value')
-        return win_loss, team_score, opp_score
+
+        return win_loss, team_score, opp_score, team, opp
 
     def get_team_record(self, profile_tree, seasons=DEF_SEASONS):
         team_record = {}

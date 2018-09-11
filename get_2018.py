@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger('nfl')
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
 logger.addHandler(ch)
 ####### ~~~~~~~~~~ #######
@@ -34,4 +34,9 @@ for url in player_urls:
 
 # pull stats
 for pg in player_getters:
-	pg.get()
+	game_data, team_record = pg.get()
+	debug.info("got player %s" %pg.playername)
+	name = pg.player_name
+	pid = pg.player_id
+	pnum = pg.player_num
+	
