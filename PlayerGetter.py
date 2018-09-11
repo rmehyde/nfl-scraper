@@ -67,8 +67,13 @@ class PlayerGetter:
         profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
         team_record, gl_seasons = self.get_team_record(profile_tree, seasons), self.get_valid_seasons(gl_tree, seasons)
         if gl_seasons != sorted(list(team_record), reverse=True):
-            err_txt = "team record keys do not match valid seasons. \n TR keys: %s \n VS: %s" %(sorted(list(team_record), reverse=True), gl_seasons)
-            raise ValueError(err_txt)
+            # find missing seasons
+            missing = list(set(team_record).difference(set(gl_seasons)))
+            warn_text = "Found game logs but not team record for %s for seasons "
+            for sea in missing:
+                warn_text += sea + " "
+            warn_text += "(likely missed for injury)"
+            logging.warning(warn_text)
         game_data = self.get_player_games(gl_seasons, seasontypes)
         self.check_keys(game_data)
         return game_data, team_record
@@ -101,11 +106,12 @@ class PlayerGetter:
             statkey = table.findall('thead/tr')[1]
             if statcats.find('td').text not in seasontypes:
                 continue
-            data = []
-            data.extend(table.findall('tbody/tr')[:-1])
-            for row in data:
+            rows = []
+            rows.extend(table.findall('tbody/tr')[:-1])
+            for row in rows:
                 elts = row.findall('td')
-                if len(elts) == 1:
+                # ignore border rows and bye weeks
+                if len(elts) == 1 or elts[1].text == "Bye":
                     continue
                 ret.append(self.parse_row(elts, statcats, statkey))
         return ret
@@ -116,7 +122,7 @@ class PlayerGetter:
         curr = 0
         next_ind = 4
 
-        # we will process all in seasontype category first so that seasontype is not included in category
+        # get team game (meta)data first
         while curr < next_ind:
             key = statkey[curr].text
             if key == "Opp":
@@ -128,7 +134,6 @@ class PlayerGetter:
             curr += 1
 
         # now lets do the others including the statcat prefix
-        # hey look its prettier too because all special cases are handled in seatype statcat :)
         for statcat in statcats[1:]:
             next_ind += self.STATCAT_KEY[statcat.text]
             while curr < next_ind:
@@ -156,7 +161,8 @@ class PlayerGetter:
         elif len(elt.findall('a')) == 1:
             link_elt = elt.find('a')
         else:
-            raise ValueError(self.current_url)
+            err_text = "Can't parse opp. Element has %d children and %d link tags and text is %s \n %s" % (len(elt.getchildren()), len(elt.findall('a')), elt.text, self.current_url)
+            raise ValueError(err_text)
         if '@' in link_elt.text:
             home = False
         else:

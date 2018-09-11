@@ -6,7 +6,7 @@ import logging
 
 ##### LOGGING SETUP ######
 logger = logging.getLogger('nfl')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
@@ -31,3 +31,7 @@ logger.info("Got %d player pages" % len(player_urls))
 player_getters = []
 for url in player_urls:
 	player_getters.append(PlayerGetter(url))
+
+# pull stats
+for pg in player_getters:
+	pg.get()
