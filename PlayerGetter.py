@@ -66,14 +66,15 @@ class PlayerGetter:
         gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
         profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
         team_record, gl_seasons = self.get_team_record(profile_tree, seasons), self.get_valid_seasons(gl_tree, seasons)
+        # handle discrepancy between career profile info and game logs
         if gl_seasons != sorted(list(team_record), reverse=True):
             # find missing seasons
             missing = list(set(team_record).difference(set(gl_seasons)))
-            warn_text = "Found game logs but not team record for %s for seasons "
+            warn_text = "Found game logs but not team record for %s for seasons " % self.player_name
             for sea in missing:
                 warn_text += sea + " "
             warn_text += "(likely missed for injury)"
-            logging.warning(warn_text)
+            logger.warning(warn_text)
         game_data = self.get_player_games(gl_seasons, seasontypes)
         self.check_keys(game_data)
         return game_data, team_record
@@ -128,7 +129,10 @@ class PlayerGetter:
             if key == "Opp":
                 point[key], point["GameAtHome"] = self.parse_opp(elts[curr])
             elif key == "Result":
-                point["Result"], point["TeamScore"], point["OppScore"] = self.parse_res(elts[curr], point["GameAtHome"])
+                try:
+                    point["Result"], point["TeamScore"], point["OppScore"] = self.parse_res(elts[curr], point["GameAtHome"])
+                except AttributeError:
+                    logger.error("Can't parse result for week %s on %s" % (elts[0].text, self.current_url))
             else:
                 point[key] = elts[curr].text
             curr += 1
@@ -140,7 +144,7 @@ class PlayerGetter:
                 try:
                     key = statkey[curr].text
                 except IndexError:
-                    logging.warning(("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind)))
+                    logger.warning(("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind)))
  #                   print("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind))
                 point[statcat.text + key] = elts[curr].text
                 curr += 1
@@ -176,10 +180,13 @@ class PlayerGetter:
         win_loss =  None
         team_score = None
         opp_score = None
-        win_loss = elt.find('span').text
-        team_score, opp_score = elt.find('a').text.split('-')
-        team_score = team_score[-2:]
-        opp_score = opp_score[:2]
+        try:
+            win_loss = elt.find('span').text
+            team_score, opp_score = elt.find('a').text.strip().split('-')
+        # tie result is not in a span
+        except AttributeError:
+            win_loss = elt.text.strip()
+            team_score, opp_score = elt.find('a').text.strip().split('-')
         if win_loss is None or team_score is None or opp_score is None:
             raise ValueError('unable to assign opp value')
         return win_loss, team_score, opp_score
