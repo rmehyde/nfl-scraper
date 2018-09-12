@@ -23,7 +23,7 @@ fantasypositions = ("QUARTERBACK", "RUNNING_BACK", "WIDE_RECEIVER", "TIGHT_END",
 positions = ("QUARTERBACK", "RUNNING_BACK", "WIDE_RECEIVER", "TIGHT_END", "DEFENSIVE_LINEMAN", "LINEBACKER",
              "DEFENSIVE_BACK", "KICKOFF_KICKER", "KICK_RETURNER", "PUNTER", "PUNT_RETURNER", "FIELD_GOAL_KICKER")
 
-lg = getter.LinkGetter(season_start=2018, season_end=2018, season_types=("PRE", "REG", "POST"))
+lg = getter.LinkGetter(season_start=2000, season_end=2018, season_types=("PRE", "REG", "POST"))
 logger.info("Building initial index urls...")
 ind_urls = lg.gen_init_urls()
 logger.info("Getting next pages...")
