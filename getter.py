@@ -1,16 +1,95 @@
-from urllib import request
 from lxml import html
+from urllib import request
 import logging
+import threading
+import queue
 
-##### LOGGING SETUP ######
-logger = logging.getLogger('nfl')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-logger.addHandler(ch)
-####### ~~~~~~~~~~ #######
+# Use this class to obtain URLs you want to scrape
+class LinkGetter:
 
+    # constructor defaults to regular 2018 season
+    def __init__(self, season_start=2018, season_end=2018, season_types=('REG',),
+        positions=("QUARTERBACK", "RUNNING_BACK", "WIDE_RECEIVER", "TIGHT_END",
+            "DEFENSIVE_LINEMAN", "LINEBACKER", "DEFENSIVE_BACK", "KICKOFF_KICKER",
+            "KICK_RETURNER", "PUNTER", "PUNT_RETURNER", "FIELD_GOAL_KICKER")):
+        seasons = []
+        for i in range(season_start, season_end+1):
+            seasons.append(str(i))
+        self.seasons = seasons
+        self.season_types = season_types
+        self.positions = positions
+        self.CURR_SEASON = '2018'
+        self.logger = logging.getLogger('nfl')
+
+    # gets from url and returns parsed tree
+    def get_tree(self, url):
+        self.logger.debug('Getting page at %s' % url)
+        res = request.urlopen(url)
+        tree = html.fromstring(res.read())
+        return tree
+
+    # thread target
+    def worker(self, q, results, i):
+        while True:
+            url = q.get()
+            results[i].append(self.get_tree(url))
+            q.task_done()
+
+    # returns array of parsed html trees from list of urls
+    def get_trees(self, urls, num_threads):
+        ret = [[]] * num_threads
+        threads = [None] * num_threads
+        q = queue.Queue()
+        for url in urls:
+            q.put(url)
+        for i in range(num_threads):
+            threads[i] = threading.Thread(target=self.worker, args=(q, ret, i), name='worker-{}'.format(i))
+            threads[i].setDaemon(True)
+            threads[i].start()
+        q.join()
+        return [x for sub in ret for x in sub]
+
+    # gets player urls from complete list of player index pages
+    def get_player_urls(self, index_urls):
+        player_urls = []
+        trees = self.get_trees(index_urls, 10)
+        for ind_url in index_urls:
+            try:
+                rows = self.get_tree(ind_url).find('body/div/div/div/div/div/div/div/form/table/tbody').findall('tr')
+            except AttributeError:
+                self.logger.info("No player pages found on %s \n Probably just because there aren't any." %ind_url)
+            for row in rows:
+                for link in row.findall('td/a'):
+                    if 'http://nfl.com' + link.get('href') not in player_urls:
+                        player_urls.append('http://nfl.com'+link.get('href'))
+        # remove urls that arent to players
+        for i in range(len(player_urls))[::-1]:
+            if player_urls[i][15] != 'p':
+                player_urls.pop(i)
+        # remove duplicates
+        player_urls = list(set(player_urls))
+        return player_urls
+
+    # return the subsequent index pages after page 1 of a category
+    def get_next_pages(self, start_urls):
+        urls = []
+        for url in start_urls:
+            tree = self.get_tree(url)
+            othIndPages = tree.findall('body[@id="com-nfl"]/div[@id="com-nfl-doc"]/div[@id="doc"]/div[@id="doc-wrap"]/div[@id="main-content"]/div[@class="c"]/div[@class="grid"]/div[@class="col span-12"]/form/span/a')
+            for elt in othIndPages:
+                if 'http://nfl.com'+elt.get('href') not in urls:
+                    urls.append('http://nfl.com'+elt.get('href'))
+        return urls
+
+    # generate the initial index pages based on seasons and positions
+    def gen_init_urls(self):
+        urls = []
+        for season in self.seasons:
+            for seasontype in self.season_types:
+                for pos in self.positions:
+                    urls.append(
+                        'http://www.nfl.com/stats/categorystats?&conference=null&statisticPositionCategory=%s&season=%s&seasonType=%s&experience=&tabSeq=1&qualified=true&Submit=Go' % (pos, season, seasontype))
+        return urls
 
 class PlayerGetter:
     STATCAT_KEY = {"Preseason": 4,
@@ -47,47 +126,52 @@ class PlayerGetter:
         self.profile_url = None
         self.player_id = None
         self.player_name = None
+        self.player_prettyname = None
         self.player_num = None
         self.gls_url = None
         self.current_url = None
+        self.position = None
+        self.height = None
+        self.weight = None
+        self.jerseynum = None
+        self.birthday = None
+        self.logger = logging.getLogger("nfl")
 
     def build_playervars(self, url):
         self.profile_url = url
         self.player_id = url.split('?')[-1][3:]
         self.player_name = url.split('/')[-2]
-        self.player_num = request.urlopen(url).geturl().split('/')[-2]
-        gl_page = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.player_id)
-        self.gls_url = gl_page.url
+        gl_res = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.player_id)
+        self.gls_url = gl_res.geturl()
+        prof_res = request.urlopen(url)
+        self.player_num = prof_res.geturl().split('/')[-2]
+        tree = html.fromstring(prof_res.read())
+        self.player_prettyname = tree.find_class("player-name")[0].text.strip()
+        num = tree.find_class("player-number")[0].text.strip().split(" ")
+        self.jerseynum = num[0]
+        self.position = num[1]
+        height = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail[1:].strip().split('-')
+        self.height = str(int(height[0])*12 + int(height[1]))
+        self.weight = tree.find_class("player-info")[0].getchildren()[2].findall("strong")[1].tail[1:].strip()
+        self.birthday = tree.find_class("player-info")[0].getchildren()[3].find("strong").tail.split(" ")[1]
 
     def get(self, seasons=DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
         self.build_playervars(self.init_url)
-        if not isinstance(seasons[0], str):
-            raise ValueError("Seasons provided should be strings!!!")
+
         gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
         profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
-        team_record = self.get_team_record(profile_tree, seasons)
         gl_seasons = self.get_valid_seasons(gl_tree, seasons)
-        # handle discrepancy between career profile info and game logs
-        if gl_seasons != sorted(list(team_record), reverse=True):
-            # find missing seasons
-            missing = list(set(team_record).difference(set(gl_seasons)))
-            warn_text = "Found game logs but not team record for %s for seasons " % self.player_name
-            for sea in missing:
-                warn_text += sea + " "
-            warn_text += "(likely missed for injury)"
-            logger.warning(warn_text)
         game_data = self.get_player_games(gl_seasons, seasontypes)
         self.check_keys(game_data)
-        return game_data, team_record
-
+        return game_data
     def check_keys(self, gd):
         try:
             key = gd[0].keys()
             for pt in gd:
                 if pt.keys() != key:
-                    logger.warning("GAME_DATA KEYS DO NOT ALL MATCH!!!!!")
+                    self.logger.warning("For player %s game data features are not alligned (game_data keys dont match)" %self.player_name)
         except IndexError:
-            logger.warning("Empty game logs for %s" %self.player_name)
+            self.logger.warning("Empty game logs for %s" %self.player_name)
 
     def get_player_games(self, seasons, seasontypes):
         gl_urls = []
@@ -115,7 +199,9 @@ class PlayerGetter:
                 # ignore border rows and bye weeks
                 if len(elts) == 1 or elts[1].text == "Bye":
                     continue
-                ret.append(self.parse_row(elts, statcats, statkey))
+                point =self.parse_row(elts, statcats, statkey)
+                point["SeasonType"] = statcats.find('td').text
+                ret.append(point)
         return ret
 
 # TODO !! NO NEED FOR DICT KEYS EVERY TIME USE AN ARRAY !! ##
@@ -143,7 +229,7 @@ class PlayerGetter:
                 try:
                     key = statkey[curr].text
                 except IndexError:
-                    logger.warning(("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind)))
+                    self.logger.warning(("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind)))
  #                   print("BAD INDEX \n Current Statcat: %s \n Current index: %s \n Statkey size: %s \n NextInd: %s" % (statcat.text, curr, len(statkey), next_ind))
                 point[statcat.text + key] = elts[curr].text
                 curr += 1
@@ -156,6 +242,7 @@ class PlayerGetter:
 
         # tack on our current season
         point["Season"] = self.current_url.split("=")[-1]
+        point["PlayerID"] = self.player_num
         return point
 
     def parse_opp(self, elt):
@@ -202,30 +289,6 @@ class PlayerGetter:
             raise ValueError('unable to assign opp value')
 
         return win_loss, team_score, opp_score, team, opp
-
-    def get_team_record(self, profile_tree, seasons=DEF_SEASONS):
-        team_record = {}
-        career_table = None
-        tables = profile_tree.find_class('data-table1')
-        for table in tables:
-            if(table.find('thead/tr/td/span')).text == 'Career Stats':
-                career_table = table
-                break
-        if career_table is None:
-            logger.warning("No career stats found on %s !!!" % self.profile_url)
-
-        for row in career_table.findall('tr'):
-            if row is not None and row.find('td/a') is not None:
-                team_record[row.find('td').text] = row.find('td/a').get('href').split('=')[1]
-        for row in career_table.findall('tbody/tr'):
-            if row is not None and row.find('td/a') is not None:
-                team_record[row.find('td').text] = row.find('td/a').get('href').split('=')[1]
-        team_record[self.CURR_SEASON] = profile_tree.find('body/div/div/div/div/div/div/div/div/div/div/div/div/p/a').get('href').split('=')[1]
-        for key in list(team_record):
-            if key not in seasons:
-                del team_record[key]
-        return team_record
-
 
     def get_valid_seasons(self, gl_tree, seasons=DEF_SEASONS):
         valid_seasons = []
