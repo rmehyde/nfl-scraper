@@ -79,7 +79,7 @@ def get_data(num_threads):
 
     # initialize a queue of playergetter objects
     q = queue.Queue()
-    for url in player_urls[:10]:
+    for url in player_urls:
         q.put(getter.PlayerGetter(url, season_start=2001, season_end=2018))
 
     # they say lists are thread safe but lets let everyone work on their own and flatten after
