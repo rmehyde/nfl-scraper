@@ -56,12 +56,12 @@ class LinkGetter:
         for ind_url in index_urls:
             try:
                 rows = self.get_tree(ind_url).find('body/div/div/div/div/div/div/div/form/table/tbody').findall('tr')
+                for row in rows:
+	                for link in row.findall('td/a'):
+	                    if 'http://nfl.com' + link.get('href') not in player_urls:
+	                        player_urls.append('http://nfl.com'+link.get('href'))
             except AttributeError:
                 self.logger.info("No player pages found on %s \n Probably just because there aren't any." %ind_url)
-            for row in rows:
-                for link in row.findall('td/a'):
-                    if 'http://nfl.com' + link.get('href') not in player_urls:
-                        player_urls.append('http://nfl.com'+link.get('href'))
         # remove urls that arent to players
         for i in range(len(player_urls))[::-1]:
             if player_urls[i][15] != 'p':
@@ -119,9 +119,12 @@ class PlayerGetter:
     CURR_SEASON = '2018'
 
 
-    def __init__(self, url):
+    def __init__(self, url, season_start, season_end):
         if '?' not in url:
             raise ValueError('Unrecognized url format. url provided: %s' %url)
+        self.allowed_seasons = []
+        for i in range(season_start, season_end+1):
+            self.allowed_seasons.append(str(i))
         self.init_url = url
         self.profile_url = None
         self.player_id = None
@@ -147,15 +150,24 @@ class PlayerGetter:
         self.player_num = prof_res.geturl().split('/')[-2]
         tree = html.fromstring(prof_res.read())
         self.player_prettyname = tree.find_class("player-name")[0].text.strip()
-        num = tree.find_class("player-number")[0].text.strip().split(" ")
-        self.jerseynum = num[0]
-        self.position = num[1]
-        height = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail[1:].strip().split('-')
-        self.height = str(int(height[0])*12 + int(height[1]))
-        self.weight = tree.find_class("player-info")[0].getchildren()[2].findall("strong")[1].tail[1:].strip()
-        self.birthday = tree.find_class("player-info")[0].getchildren()[3].find("strong").tail.split(" ")[1]
+        # some players are missing position and jersey number, need diff parsing
+        try:
+            self.jerseynum = tree.find_class("player-number")[0].text.strip().split(" ")[0]
+            height = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail[1:].strip().split('-')
+            self.height = str(int(height[0])*12 + int(height[1]))
+            self.weight = tree.find_class("player-info")[0].getchildren()[2].findall("strong")[1].tail[1:].strip()
+            self.birthday = tree.find_class("player-info")[0].getchildren()[3].find("strong").tail.split(" ")[1]
+        except IndexError:
+            self.logger.debug("Failed to get jersey number for %s" %self.profile_url)
+            height = tree.find_class("player-info")[0].getchildren()[1].find("strong").tail[1:].strip().split('-')
+            self.height = str(int(height[0])*12 + int(height[1]))
+            self.weight = tree.find_class("player-info")[0].getchildren()[1].findall("strong")[1].tail[1:].strip()
+            self.birthday = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail.split(" ")[1]
+        self.position = tree.find("head/title").text.split(',')[1].split(' ')[1].strip()
 
-    def get(self, seasons=DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
+
+    def get(self, seasontypes=DEF_SEASON_TYPES):
+        seasons = self.allowed_seasons
         self.build_playervars(self.init_url)
 
         gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
