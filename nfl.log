@@ -1,0 +1,36 @@
+2018-09-13 17:47:51,423 - Failed to get jersey number for http://nfl.com/players/travislewis/profile?id=LEW746912
+2018-09-13 17:47:52,013 - Failed to get jersey number for http://nfl.com/players/desmondclark/profile?id=CLA258726
+2018-09-13 17:47:53,295 - got player travislewis
+2018-09-13 17:47:53,998 - Failed to get jersey number for http://nfl.com/players/clifforddukes/profile?id=DUK273486
+2018-09-13 17:47:54,554 - got player clifforddukes
+2018-09-13 17:47:54,989 - got player desmondclark
+2018-09-13 17:47:55,748 - Failed to get jersey number for http://nfl.com/players/drakenevis/profile?id=NEV687714
+2018-09-13 17:47:56,193 - got player rileymccarron
+2018-09-13 17:47:57,677 - got player drakenevis
+2018-09-13 17:47:58,484 - Failed to get jersey number for http://nfl.com/players/raymcelroy/profile?id=MCE174824
+2018-09-13 17:47:58,737 - got player terrellwatson
+2018-09-13 17:47:58,946 - got player raymcelroy
+2018-09-13 17:47:59,333 - Failed to get jersey number for http://nfl.com/players/mikesims-walker/profile?id=WAL281506
+2018-09-13 17:47:59,634 - Failed to get jersey number for http://nfl.com/players/rafaelpriest/profile?id=PRI420512
+2018-09-13 17:48:00,109 - got player mikesims-walker
+2018-09-13 17:48:00,472 - got player rafaelpriest
+2018-09-13 17:48:00,832 - Failed to get jersey number for http://nfl.com/players/tanardjackson/profile?id=JAC565378
+2018-09-13 17:48:01,977 - got player tanardjackson
+2018-09-13 17:49:03,239 - Failed to get jersey number for http://nfl.com/players/desmondclark/profile?id=CLA258726
+2018-09-13 17:49:04,254 - Failed to get jersey number for http://nfl.com/players/travislewis/profile?id=LEW746912
+2018-09-13 17:49:05,069 - got player desmondclark
+2018-09-13 17:49:05,160 - got player travislewis
+2018-09-13 17:49:05,774 - Failed to get jersey number for http://nfl.com/players/clifforddukes/profile?id=DUK273486
+2018-09-13 17:49:06,204 - got player clifforddukes
+2018-09-13 17:49:06,654 - got player rileymccarron
+2018-09-13 17:49:06,736 - Failed to get jersey number for http://nfl.com/players/drakenevis/profile?id=NEV687714
+2018-09-13 17:49:07,564 - got player drakenevis
+2018-09-13 17:49:08,145 - Failed to get jersey number for http://nfl.com/players/raymcelroy/profile?id=MCE174824
+2018-09-13 17:49:08,201 - got player terrellwatson
+2018-09-13 17:49:08,778 - Failed to get jersey number for http://nfl.com/players/mikesims-walker/profile?id=WAL281506
+2018-09-13 17:49:09,581 - got player mikesims-walker
+2018-09-13 17:49:09,639 - got player raymcelroy
+2018-09-13 17:49:10,365 - Failed to get jersey number for http://nfl.com/players/rafaelpriest/profile?id=PRI420512
+2018-09-13 17:49:10,960 - got player rafaelpriest
+2018-09-13 17:49:11,511 - Failed to get jersey number for http://nfl.com/players/tanardjackson/profile?id=JAC565378
+2018-09-13 17:49:12,349 - got player tanardjackson
