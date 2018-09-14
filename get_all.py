@@ -62,15 +62,15 @@ def player_worker(q, player_data, game_data, i):
             game_data[i].extend(player_gls)
             q.task_done()
         # if we fail to connect re add to queue and wait 10s before resuming work
-        except urllib.error.URLError:
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
             q.task_done()
             q.put(pg)
             naptime = randint(5,30)
-            logger.info("Thread %d encountered URLError. PlayerGetter re-added to queue, taking a  %d second nap..." %(i, naptime))
+            logger.info("Thread %d encountered URLError or ConnectionError. PlayerGetter re-added to queue, taking a  %d second nap..." %(i, naptime))
             time.sleep(naptime)
         count += 1
         if count%50 == 0:
-            log.info("Thread %d says queue has %d PlayerGetters" %(i, q.qsize()))
+            logger.info("Thread %d says queue has %d PlayerGetters" %(i, q.qsize()))
         
 def get_data(num_threads):
     # read player urls file from get_links
@@ -108,13 +108,17 @@ def format_data():
         players_raw = pickle.loads(f.read())
     logger.info("flattening arrays")
     # flatten arrays
-    game_data = [x for sub in game_data for x in sub]
-    player_data = [x for sub in player_data for x in sub]
+    gl_raw = [x for sub in gl_raw for x in sub]
+    players_raw = [x for sub in players_raw for x in sub]
     logger.info("converting to dataframe")
-    game_df = pd.DataFrame(game_data)
-    player_df = pd.DataFrame(player_data)
+    player_df = pd.DataFrame(players_raw)
+    gl_df = pd.DataFrame(gl_raw)
+    # save to hdf5
     logger.info("saving dataframes")
-    game_df.to_pickle("data/gamelogs.pkl")
-    player_df.to_pickle("data/players.pkl")
+    store = pd.HDFStore("data/nfl.h5")
+    store['gamelogs'] = gl_df
+    store['players'] = player_df
 
-get_links()
+# get_links()
+# get_data(50)
+format_data()
