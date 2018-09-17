@@ -1,3 +1,5 @@
 .DS_Store
 __pycache__/
+data/gamelogs_raw.pkl
+data/players_raw.pkl
 

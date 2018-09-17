@@ -43,11 +43,20 @@ def get_links():
 
 def player_worker(q, player_data, game_data, i):
     count = 0
-    while True:
-        pg = q.get()
+    done = False
+    while not done:
+        logger.debug("thread %d: top of while loop" %i)
+        # if theres no more work to do exit while loop
+        if q.empty():
+            logger.debug("thread %d: queue is empty, setting done")
+            done = True
+            continue
+        url = q.get(block=False)
+        logger.debug("thread %d got url %s" %(i, url))
         try:
-            player_gls = pg.get()
-            logger.debug("got player %s" %pg.player_name)
+            logger.debug("thread %d trying" %i)
+            pg = getter.PlayerGetter(url, season_start=2001, season_end=2018)
+            player_gls = pg.get_game_logs()
             player = {}
             player["PlayerID"] = pg.player_id
             player["PlayerNum"] = pg.player_num
@@ -58,40 +67,38 @@ def player_worker(q, player_data, game_data, i):
             player["Weight"] = pg.weight
             player["Birthday"] = pg.birthday
             player["JerseyNum"] = pg.jerseynum
-            player_data[i].append(player)
-            game_data[i].extend(player_gls)
+            player_data.append(player)
+            game_data.extend(player_gls)
             q.task_done()
-        # if we fail to connect re add to queue and wait 10s before resuming work
-        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            logger.debug("thread %d got player %s" %(i, pg.player_prettyname))
+        # if we fail to connect re add to queue and wait before resuming work
+        except (urllib.error.URLError, ConnectionError, TimeoutError)
+            q.put(url)
             q.task_done()
-            q.put(pg)
             naptime = randint(5,30)
-            logger.info("Thread %d encountered URLError or ConnectionError. PlayerGetter re-added to queue, taking a  %d second nap..." %(i, naptime))
+            logger.debug("Thread %d encountered URLError or ConnectionError. PlayerGetter re-added to queue, taking a  %d second nap..." %(i, naptime))
             time.sleep(naptime)
-        count += 1
-        if count%50 == 0:
-            logger.info("Thread %d says queue has %d PlayerGetters" %(i, q.qsize()))
+        logger.debug("%d active threads, queue has size %d" %(threading.active_count(), q.qsize()))
         
 def get_data(num_threads):
     # read player urls file from get_links
     with open('data/player_urls.pkl', 'rb') as f:
         player_urls = pickle.loads(f.read())
 
-    # initialize a queue of playergetter objects
+    # initialize a queue of player urls
     q = queue.Queue()
     for url in player_urls:
-        q.put(getter.PlayerGetter(url, season_start=2001, season_end=2018))
+        q.put(url)
 
-    # they say lists are thread safe but lets let everyone work on their own and flatten after
-    player_data = [[]] * num_threads
-    game_data = [[]] * num_threads
+    player_data = []
+    game_data = []
     threads = [None] * num_threads
     # pull stats
     for i in range(num_threads):
         threads[i]  = threading.Thread(target=player_worker, args=(q, player_data, game_data, i), \
             name='player-worker-{}'.format(i))
-        threads[i].setDaemon(True)
         threads[i].start()
+    # main thread waits for all tasks to finish then kills threads
     q.join()
 
     with open('data/gamelogs_raw.pkl', 'wb') as f:
@@ -101,15 +108,11 @@ def get_data(num_threads):
 
 def format_data():
     logger.info("reading saved raw data")
-    # read unflattened data
+    # read data
     with open("data/gamelogs_raw.pkl", "rb") as f:
         gl_raw = pickle.loads(f.read())
     with open("data/players_raw.pkl", "rb") as f:
         players_raw = pickle.loads(f.read())
-    logger.info("flattening arrays")
-    # flatten arrays
-    gl_raw = [x for sub in gl_raw for x in sub]
-    players_raw = [x for sub in players_raw for x in sub]
     logger.info("converting to dataframe")
     player_df = pd.DataFrame(players_raw)
     gl_df = pd.DataFrame(gl_raw)
@@ -120,5 +123,5 @@ def format_data():
     store['players'] = player_df
 
 # get_links()
-# get_data(50)
-format_data()
+get_data(50)
+# format_data()

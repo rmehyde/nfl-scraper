@@ -32,12 +32,12 @@ class LinkGetter:
     def worker(self, q, results, i):
         while True:
             url = q.get()
-            results[i].append(self.get_tree(url))
+            results.append(self.get_tree(url))
             q.task_done()
 
     # returns array of parsed html trees from list of urls
     def get_trees(self, urls, num_threads):
-        ret = [[]] * num_threads
+        ret = [] * num_threads
         threads = [None] * num_threads
         q = queue.Queue()
         for url in urls:
@@ -47,7 +47,7 @@ class LinkGetter:
             threads[i].setDaemon(True)
             threads[i].start()
         q.join()
-        return [x for sub in ret for x in sub]
+        return ret
 
     # gets player urls from complete list of player index pages
     def get_player_urls(self, index_urls):
@@ -115,9 +115,7 @@ class PlayerGetter:
     for i in range(2000, 2019):
         DEF_SEASONS.append(str(i))
     DEF_SEASON_TYPES = ["Preseason", "Regular Season", "Postseason"]
-
     CURR_SEASON = '2018'
-
 
     def __init__(self, url, season_start, season_end):
         if '?' not in url:
@@ -125,6 +123,7 @@ class PlayerGetter:
         self.allowed_seasons = []
         for i in range(season_start, season_end+1):
             self.allowed_seasons.append(str(i))
+        DEF_SEASONS = self.allowed_seasons  #ew im sorry
         self.init_url = url
         self.profile_url = None
         self.player_id = None
@@ -139,6 +138,7 @@ class PlayerGetter:
         self.jerseynum = None
         self.birthday = None
         self.logger = logging.getLogger("nfl")
+        self.build_playervars(self.init_url)
 
     def build_playervars(self, url):
         self.profile_url = url
@@ -165,17 +165,6 @@ class PlayerGetter:
             self.birthday = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail.split(" ")[1]
         self.position = tree.find("head/title").text.split(',')[1].split(' ')[1].strip()
 
-
-    def get(self, seasontypes=DEF_SEASON_TYPES):
-        seasons = self.allowed_seasons
-        self.build_playervars(self.init_url)
-
-        gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
-        profile_tree = html.fromstring(request.urlopen(self.profile_url).read())
-        gl_seasons = self.get_valid_seasons(gl_tree, seasons)
-        game_data = self.get_player_games(gl_seasons, seasontypes)
-        self.check_keys(game_data)
-        return game_data
     def check_keys(self, gd):
         try:
             key = gd[0].keys()
@@ -183,9 +172,11 @@ class PlayerGetter:
                 if pt.keys() != key:
                     self.logger.warning("For player %s game data features are not alligned (game_data keys dont match)" %self.player_name)
         except IndexError:
-            self.logger.warning("Empty game logs for %s" %self.player_name)
+            self.logger.debug("Empty game logs for %s" %self.player_name)
 
-    def get_player_games(self, seasons, seasontypes):
+    def get_game_logs(self, seasons= DEF_SEASONS, seasontypes=DEF_SEASON_TYPES):
+        gl_tree = html.fromstring(request.urlopen(self.gls_url).read())
+        valid_seasons = self.get_valid_seasons(gl_tree, seasons)
         gl_urls = []
         for sea in seasons:
             gl_urls.append(self.gls_url + '?season=' + sea)
@@ -193,10 +184,11 @@ class PlayerGetter:
         for url in gl_urls:
             self.current_url = url
             tree = html.fromstring(request.urlopen(url).read())
-            data.extend(self.get_game_data(tree, seasontypes))
+            data.extend(self.parse_gl_page(tree, seasontypes))
+        self.check_keys(data)
         return data
 
-    def get_game_data(self, gl_tree, seasontypes=("Preseason", "Regular Season", "Postseason")):
+    def parse_gl_page(self, gl_tree, seasontypes=("Preseason", "Regular Season", "Postseason")):
         tables = gl_tree.find_class('data-table1')
         ret = []
         for table in tables:
