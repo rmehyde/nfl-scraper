@@ -1,4 +1,5 @@
 import getter
+import formatter
 import logging
 import pandas as pd
 import pickle
@@ -7,17 +8,18 @@ import threading
 import time
 import urllib
 from random import randint
+import sqlite3
 
 ##### LOGGING SETUP ######
 logger = logging.getLogger('nfl')
 logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(message)s')
+logformatter = logging.Formatter('%(asctime)s - %(message)s')
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
-ch.setFormatter(formatter)
+ch.setFormatter(logformatter)
 fh = logging.FileHandler('nfl.log')
 fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
+fh.setFormatter(logformatter)
 logger.addHandler(ch)
 logger.addHandler(fh)
 ####### ~~~~~~~~~~ #######
@@ -58,8 +60,8 @@ def player_worker(q, player_data, game_data, i):
             pg = getter.PlayerGetter(url, season_start=2001, season_end=2018)
             player_gls = pg.get_game_logs()
             player = {}
+            player["WebID"] = pg.web_id
             player["PlayerID"] = pg.player_id
-            player["PlayerNum"] = pg.player_num
             player["Name"] = pg.player_name
             player["PrettyName"] = pg.player_prettyname
             player["Position"] = pg.position
@@ -72,7 +74,7 @@ def player_worker(q, player_data, game_data, i):
             q.task_done()
             logger.debug("thread %d got player %s" %(i, pg.player_prettyname))
         # if we fail to connect re add to queue and wait before resuming work
-        except (urllib.error.URLError, ConnectionError, TimeoutError)
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
             q.put(url)
             q.task_done()
             naptime = randint(5,30)
@@ -106,22 +108,27 @@ def get_data(num_threads):
     with open('data/players_raw.pkl', 'wb') as f:
         f.write(pickle.dumps(player_data))
 
-def format_data():
-    logger.info("reading saved raw data")
-    # read data
-    with open("data/gamelogs_raw.pkl", "rb") as f:
-        gl_raw = pickle.loads(f.read())
-    with open("data/players_raw.pkl", "rb") as f:
-        players_raw = pickle.loads(f.read())
-    logger.info("converting to dataframe")
-    player_df = pd.DataFrame(players_raw)
-    gl_df = pd.DataFrame(gl_raw)
-    # save to hdf5
-    logger.info("saving dataframes")
-    store = pd.HDFStore("data/nfl.h5")
-    store['gamelogs'] = gl_df
-    store['players'] = player_df
+def format_gamelogs():
+    fm = formatter.GameLogsFormatter()
+    raw = fm.read_raw("data/gamelogs_raw.pkl")
+    new = fm.format_raw(raw)
+    df = pd.DataFrame(new)
+    return fm.rename_columns(df)
 
-# get_links()
+def format_players():
+    fm = formatter.PlayersFormatter()
+    raw = fm.read_raw('data/players_raw.pkl')
+    new = fm.format_raw(raw)
+    df = pd.DataFrame(new).set_index('PlayerID')
+    return df
+
+def write_to_db(gl_df, players_df):
+    conn = sqlite3.connect('data/nfl.db')
+    gl_df.to_sql("GameLogs", conn, if_exists='fail')
+    players_df.to_sql("Players", conn, if_exists='fail')
+
+get_links()
 get_data(50)
-# format_data()
+gl_df = format_gamelogs()
+players_df = format_players()
+write_to_db(gl_df, players_df)

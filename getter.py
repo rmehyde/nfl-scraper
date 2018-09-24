@@ -126,10 +126,10 @@ class PlayerGetter:
         DEF_SEASONS = self.allowed_seasons  #ew im sorry
         self.init_url = url
         self.profile_url = None
-        self.player_id = None
+        self.web_id = None
         self.player_name = None
         self.player_prettyname = None
-        self.player_num = None
+        self.player_id = None
         self.gls_url = None
         self.current_url = None
         self.position = None
@@ -142,12 +142,12 @@ class PlayerGetter:
 
     def build_playervars(self, url):
         self.profile_url = url
-        self.player_id = url.split('?')[-1][3:]
+        self.web_id = url.split('?')[-1][3:]
         self.player_name = url.split('/')[-2]
-        gl_res = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.player_id)
+        gl_res = request.urlopen('http://nfl.com/players/' + self.player_name + '/gamelogs?id=' + self.web_id)
         self.gls_url = gl_res.geturl()
         prof_res = request.urlopen(url)
-        self.player_num = prof_res.geturl().split('/')[-2]
+        self.player_id = prof_res.geturl().split('/')[-2]
         tree = html.fromstring(prof_res.read())
         self.player_prettyname = tree.find_class("player-name")[0].text.strip()
         # some players are missing position and jersey number, need diff parsing
@@ -161,7 +161,7 @@ class PlayerGetter:
             self.logger.debug("Failed to get jersey number for %s" %self.profile_url)
             height = tree.find_class("player-info")[0].getchildren()[1].find("strong").tail[1:].strip().split('-')
             self.height = str(int(height[0])*12 + int(height[1]))
-            self.weight = tree.find_class("player-info")[0].getchildren()[1].findall("strong")[1].tail[1:].strip()
+            self.weight = tree.find_class("player-info")[0].getchildren()[1].findall("strong")[1].tail[1:].strip().split(" ")[0].strip()
             self.birthday = tree.find_class("player-info")[0].getchildren()[2].find("strong").tail.split(" ")[1]
         self.position = tree.find("head/title").text.split(',')[1].split(' ')[1].strip()
 
@@ -246,7 +246,7 @@ class PlayerGetter:
 
         # tack on our current season
         point["Season"] = self.current_url.split("=")[-1]
-        point["PlayerID"] = self.player_num
+        point["PlayerID"] = self.player_id
         return point
 
     def parse_opp(self, elt):
