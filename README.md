@@ -1,5 +1,5 @@
 # nfl-scraper
-This project scrapes game logs and player data from nfl.com. Check out the `get_all.py` script for a demonstration of how to pull all points from 2001 to present. If you just want the data you can download a SQLite database containing those records [here](http://rmehyde.com/files/nfl.db) (75MB).
+This project scrapes game logs and player data from nfl.com. Check out the `get_all.py` script for a demonstration of how to pull all points from 2001 to present. If you just want the data you can download a SQLite database containing those records [here](http://rmehyde.com/files/nfl.db) (75MB).  
 If you're interested in working with this data, also definitely check out the [NFL's own API](https://api.nfl.com/docs/getting-started/index.html), which serves up this same data that powers nfl.com/stats, but only offering records starting in 2009 and semi-limited access to the public.
 
 ## dataset
